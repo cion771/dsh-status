@@ -27,7 +27,7 @@ window.__ModuleLoader__.load({
     const POLL_MS = 60000;
 
     const zh = {
-      'brand': 'DeepSeek API',
+      'brand': 'AI API',
       'status.operational': '正常',
       'status.degraded': '性能下降',
       'status.partial_outage': '部分中断',
@@ -35,15 +35,17 @@ window.__ModuleLoader__.load({
       'status.maintenance': '维护中',
       'status.unknown': '未知',
       'status.loading': '读取中',
-      'panel.title': 'DeepSeek API 服务状态',
+      'panel.title': 'AI API 服务状态',
       'panel.overall': '整体状态',
-      'panel.affected': '受影响的服务',
-      'panel.healthy': '其余服务正常',
-      'panel.allHealthy': '所有服务运行正常',
+      'panel.detail.allHealthy': '{count} 项组件全部正常',
+      'panel.detail.rest': '其余 {count} 项正常',
+      'panel.detail.unavailable': '暂不可用',
       'panel.incidents': '进行中的事件',
       'panel.updated': '更新于 {value}',
       'panel.stale': '旧数据：本次刷新失败',
-      'panel.source': '来源 status.deepseek.com（看板 + Atom 订阅）',
+      'panel.currentModel': '当前模型 {value}',
+      'panel.others': '其他 {value}',
+      'panel.source': '来源 {value}',
       'panel.empty': '暂时读取不到状态页数据',
       'incident.investigating': '调查中',
       'incident.identified': '已定位',
@@ -58,7 +60,7 @@ window.__ModuleLoader__.load({
     };
 
     const en = {
-      'brand': 'DeepSeek API',
+      'brand': 'AI API',
       'status.operational': 'Operational',
       'status.degraded': 'Degraded',
       'status.partial_outage': 'Partial outage',
@@ -66,16 +68,18 @@ window.__ModuleLoader__.load({
       'status.maintenance': 'Maintenance',
       'status.unknown': 'Unknown',
       'status.loading': 'Loading',
-      'panel.title': 'DeepSeek API service status',
+      'panel.title': 'AI API status',
       'panel.overall': 'Overall',
-      'panel.affected': 'Affected services',
-      'panel.healthy': 'Other services are healthy',
-      'panel.allHealthy': 'All services operational',
+      'panel.detail.allHealthy': '{count} components operational',
+      'panel.detail.rest': '{count} more operational',
+      'panel.detail.unavailable': 'Unavailable',
       'panel.incidents': 'Open incidents',
       'panel.updated': 'Updated {value}',
       'panel.stale': 'Stale: the last refresh failed',
-      'panel.source': 'Source: status.deepseek.com (board + Atom feed)',
-      'panel.empty': 'The status page could not be read yet',
+      'panel.currentModel': 'Model {value}',
+      'panel.others': 'Others {value}',
+      'panel.source': 'Source {value}',
+      'panel.empty': 'The status pages could not be read yet',
       'incident.investigating': 'Investigating',
       'incident.identified': 'Identified',
       'incident.monitoring': 'Monitoring',
@@ -106,6 +110,12 @@ window.__ModuleLoader__.load({
 .dsd-panel-head{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .dsd-panel-title{flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary)}
 .dsd-badge{flex:none;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border:1px solid color-mix(in srgb, var(--dsd-health, var(--dsw-alias-border-l1)) 55%, transparent);border-radius:999px;font-size:11px;font-weight:600;line-height:18px;color:var(--dsd-health, var(--dsw-alias-label-tertiary));background:var(--dsw-alias-bg-layer-2)}
+.dsd-provider{display:flex;align-items:center;gap:8px;margin-top:10px;padding:2px 0 5px;border-bottom:1px solid var(--dsw-alias-border-l1);min-width:0}
+.dsd-provider-name{flex:1;min-width:0;font-weight:600;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsd-provider-state{flex:none;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.dsd-provider[data-tone="warn"] .dsd-provider-state{color:var(--dsw-alias-state-warn-primary)}
+.dsd-provider[data-tone="error"] .dsd-provider-state{color:var(--dsw-alias-state-error-primary)}
+.dsd-sub{padding-left:14px}
 .dsd-sect{margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-tertiary)}
 .dsd-row{display:flex;align-items:center;gap:8px;padding:3px 0;min-width:0}
 .dsd-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -119,6 +129,8 @@ window.__ModuleLoader__.load({
 .dsd-incident-title{color:var(--dsw-alias-label-primary);font-weight:500}
 .dsd-incident-state{color:var(--dsw-alias-label-tertiary)}
 .dsd-incident-link{color:var(--dsw-alias-brand-primary);font-size:11px;word-break:break-all;user-select:text}
+.dsd-model{margin-top:8px;font-size:11px;color:var(--dsw-alias-label-tertiary);word-break:break-all}
+.dsd-others{margin-top:8px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .dsd-foot{margin-top:10px;padding-top:8px;border-top:1px solid var(--dsw-alias-border-l1);font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary)}
 .dsd-warnline{color:var(--dsw-alias-state-warn-primary)}
 @keyframes dsd-status-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.82)}}
@@ -252,81 +264,152 @@ window.__ModuleLoader__.load({
       return `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
     }
 
+    /** The providers carried by a board, whatever shape the Host sent. */
+    function providersOf(board) {
+      if (board && Array.isArray(board.providers)) return board.providers;
+      return [];
+    }
+
+    /**
+     * Which status page belongs to the model the session is currently pointing at.
+     *
+     * The catalog identifies a selection as `provider` (the adapter group) plus the
+     * provider-owned `model` id, and neither is guaranteed to be a bare vendor name,
+     * so both are matched. An unrecognised selection returns null and the pill keeps
+     * showing every provider.
+     */
+    function matchProviderId(selection) {
+      if (!selection || typeof selection !== 'object') return null;
+      const provider = typeof selection.provider === 'string' ? selection.provider : '';
+      const model = typeof selection.model === 'string' ? selection.model : '';
+      const haystack = `${provider} ${model}`.toLowerCase();
+      if (haystack.trim() === '') return null;
+      if (/claude|anthropic/.test(haystack)) return 'anthropic';
+      if (/gpt|openai|chatgpt|codex|(^|[-_/ ])o\d/.test(haystack)) return 'openai';
+      if (/deepseek/.test(haystack)) return 'deepseek';
+      return null;
+    }
+
+    /** A provider's own impaired share, falling back to its headline when it has no list. */
+    function providerRatio(provider) {
+      const health = healthOf(provider && provider.services);
+      return health.known ? health.ratio : ratioForHeadline(provider && provider.headline);
+    }
+
     /** The plain-text fallback carried by aria-label, so the pill stays readable. */
     function tooltip(board, t, label) {
       const lines = [t('panel.title'), `${t('panel.overall')}：${label}`];
-      const { affected } = splitServices(Array.isArray(board.services) ? board.services : []);
-      if (affected.length > 0) {
-        lines.push('', `${t('panel.affected')}：`);
-        for (const service of affected) lines.push(`· ${service.name} — ${t(LABEL_KEY[service.status] ?? 'status.unknown')}`);
+      for (const provider of providersOf(board)) {
+        const { affected } = splitServices(Array.isArray(provider.services) ? provider.services : []);
+        const state = t(LABEL_KEY[provider.headline] ?? 'status.unknown');
+        lines.push('', `${provider.name} — ${state}`);
+        for (const service of affected) {
+          lines.push(`· ${service.name} — ${t(LABEL_KEY[service.status] ?? 'status.unknown')}`);
+        }
       }
-      for (const incident of Array.isArray(board.incidents) ? board.incidents : []) {
-        lines.push('', `· ${incident.title}（${t(`incident.${incident.status}`)}）`);
+      for (const provider of providersOf(board)) {
+        for (const incident of Array.isArray(provider.incidents) ? provider.incidents : []) {
+          lines.push('', `· ${provider.name}：${incident.title}（${t(`incident.${incident.status}`)}）`);
+        }
       }
       return lines.join('\n');
     }
 
     function StatusPanel(props) {
-      const { board, t, loading, label, id } = props;
-      const services = !loading && Array.isArray(board.services) ? board.services : [];
-      const { affected, healthy } = splitServices(services);
-      const incidents = !loading && Array.isArray(board.incidents) ? board.incidents : [];
+      const { board, t, loading, label, id, focus, model } = props;
+      const all = loading ? [] : providersOf(board);
+      const focused = focus === null || focus === undefined;
+      const providers = focused ? all : all.filter((provider) => provider.id === focus);
+      const others = focused ? [] : all.filter((provider) => provider.id !== focus);
       const tone = loading ? 'unknown' : TONE[board.headline] ?? 'unknown';
 
       const rows = [];
-      if (!loading && affected.length > 0) {
-        rows.push(h('div', { className: 'dsd-sect', key: 'sect-affected' }, t('panel.affected')));
+      for (const provider of providers) {
+        const providerTone = provider.ok === false ? 'unknown' : TONE[provider.headline] ?? 'unknown';
+        const services = Array.isArray(provider.services) ? provider.services : [];
+        const { affected, healthy } = splitServices(services);
+        const incidents = Array.isArray(provider.incidents) ? provider.incidents : [];
+
+        rows.push(h('div', {
+          className: 'dsd-provider',
+          'data-tone': providerTone,
+          key: `p:${provider.id}`,
+        },
+          h('span', { className: 'dsd-status-dot', 'data-tone': providerTone, 'aria-hidden': 'true' }),
+          h('span', { className: 'dsd-provider-name' }, provider.name),
+          h('span', { className: 'dsd-provider-state' },
+            provider.ok === false
+              ? t('panel.detail.unavailable')
+              : t(LABEL_KEY[provider.headline] ?? 'status.unknown')),
+        ));
+
         for (const service of affected) {
           const rowTone = serviceTone(service.status);
-          rows.push(h('div', { className: 'dsd-row', 'data-tone': rowTone, key: `a:${service.name}` },
+          rows.push(h('div', { className: 'dsd-sub', 'data-tone': rowTone, key: `a:${provider.id}:${service.name}` },
             h('span', { className: 'dsd-status-dot', 'data-tone': rowTone, 'aria-hidden': 'true' }),
             h('span', { className: 'dsd-row-name', title: service.name }, service.name),
             h('span', { className: 'dsd-row-state' }, t(LABEL_KEY[service.status] ?? 'status.unknown')),
           ));
         }
-      }
-      if (!loading && affected.length === 0 && services.length > 0) {
-        rows.push(h('div', { className: 'dsd-quiet', key: 'all-healthy' },
-          h('span', { className: 'dsd-status-dot', 'data-tone': 'ok', 'aria-hidden': 'true', style: { marginRight: 6 } }),
-          t('panel.allHealthy')));
-      }
-      if (!loading && healthy.length > 0) {
-        rows.push(h('div', { className: 'dsd-sect', key: 'sect-healthy' }, `${t('panel.healthy')} · ${healthy.length}`));
-        for (const service of healthy) {
-          rows.push(h('div', { className: 'dsd-row', 'data-tone': 'ok', key: `h:${service.name}` },
-            h('span', { className: 'dsd-status-dot', 'data-tone': 'ok', 'aria-hidden': 'true' }),
-            h('span', { className: 'dsd-row-name', title: service.name }, service.name),
-            h('span', { className: 'dsd-row-state' }, t('status.operational')),
-          ));
+
+        if (services.length > 0 && affected.length === 0) {
+          rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `q:${provider.id}` },
+            t('panel.detail.allHealthy', { count: healthy.length })));
+        } else if (affected.length > 0) {
+          rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `r:${provider.id}` },
+            t('panel.detail.rest', { count: healthy.length })));
+        } else if (provider.ok === false) {
+          rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `e:${provider.id}` },
+            provider.error ? String(provider.error).slice(0, 80) : t('panel.detail.unavailable')));
+        }
+
+        if (incidents.length > 0) {
+          for (const incident of incidents) {
+            rows.push(h('div', { className: 'dsd-incident dsd-sub', key: `i:${provider.id}:${incident.title}` },
+              h('div', { className: 'dsd-incident-title' }, incident.title),
+              h('div', { className: 'dsd-incident-state' }, t(`incident.${incident.status}`)),
+              typeof incident.link === 'string' && incident.link !== ''
+                ? h('div', { className: 'dsd-incident-link' }, incident.link)
+                : null,
+            ));
+          }
         }
       }
-      if (incidents.length > 0) {
-        rows.push(h('div', { className: 'dsd-sect', key: 'sect-incidents' }, t('panel.incidents')));
-        for (const incident of incidents) {
-          rows.push(h('div', { className: 'dsd-incident', key: `i:${incident.title}` },
-            h('div', { className: 'dsd-incident-title' }, incident.title),
-            h('div', { className: 'dsd-incident-state' }, t(`incident.${incident.status}`)),
-            typeof incident.link === 'string' && incident.link !== ''
-              ? h('div', { className: 'dsd-incident-link' }, incident.link)
-              : null,
-          ));
-        }
-      }
-      if (loading || (services.length === 0 && incidents.length === 0)) {
+
+      if (loading || providers.length === 0) {
         rows.push(h('div', { className: 'dsd-quiet', key: 'empty' },
           loading ? t('status.loading') : t('panel.empty')));
       }
+
+      const sources = providers
+        .map((provider) => provider.source)
+        .filter((source) => typeof source === 'string' && source !== '');
 
       return h('div', { className: 'dsd-panel', id, role: 'tooltip' },
         h('div', { className: 'dsd-panel-head' },
           h('span', { className: 'dsd-panel-title' }, t('panel.title')),
           h('span', { className: 'dsd-badge', 'data-tone': tone }, loading ? t('status.loading') : label),
         ),
+        ...(typeof model === 'string' && model !== ''
+          ? [h('div', { className: 'dsd-model', key: 'model' }, t('panel.currentModel', { value: model }))]
+          : []),
         ...rows,
+        ...(others.length > 0
+          ? [h('div', { className: 'dsd-others', key: 'others' },
+            t('panel.others', {
+              value: others
+                .map((provider) => `${provider.name} ${provider.ok === false
+                  ? t('panel.detail.unavailable')
+                  : t(LABEL_KEY[provider.headline] ?? 'status.unknown')}`)
+                .join(' · '),
+            }))]
+          : []),
         h('div', { className: 'dsd-foot' },
-          board && board.stale === true ? h('div', { className: 'dsd-warnline' }, t('panel.stale')) : null,
+          providers.some((provider) => provider.stale === true)
+            ? h('div', { className: 'dsd-warnline' }, t('panel.stale'))
+            : null,
           h('div', null, t('panel.updated', { value: clockOf(board && board.fetchedAt) })),
-          h('div', null, t('panel.source')),
+          h('div', null, t('panel.source', { value: sources.join(' · ') })),
         ),
       );
     }
@@ -334,10 +417,48 @@ window.__ModuleLoader__.load({
     function StatusPill(props) {
       const t = makeT(props.t);
       const [board, setBoard] = useState(null);
+      const [selection, setSelection] = useState(null);
       const [panelId] = useState(() => {
         panelSeq += 1;
         return `dsd-panel-${panelSeq}`;
       });
+
+      // Follow the model this session is pointed at: the model catalog service keeps
+      // one directory per session, and its store publishes the current selection.
+      const directories = props.models;
+      const sessionId = props.sessionId;
+      useEffect(() => {
+        if (directories === undefined || directories === null) return undefined;
+        if (typeof directories.directoryFor !== 'function') return undefined;
+        if (typeof sessionId !== 'string' || sessionId === '') return undefined;
+        let directory;
+        try {
+          directory = directories.directoryFor(sessionId);
+        } catch {
+          return undefined;
+        }
+        const store = directory && directory.store;
+        if (!store || typeof store.subscribe !== 'function' || typeof store.getSnapshot !== 'function') return undefined;
+        const read = () => {
+          try {
+            const snapshot = store.getSnapshot();
+            return snapshot && snapshot.current ? snapshot.current : null;
+          } catch {
+            return null;
+          }
+        };
+        setSelection(read());
+        const unsubscribe = store.subscribe(() => setSelection(read()));
+        try {
+          const loading = directory.load();
+          if (loading && typeof loading.catch === 'function') loading.catch(() => undefined);
+        } catch {
+          /* the projected selection still arrives through the store */
+        }
+        return () => {
+          if (typeof unsubscribe === 'function') unsubscribe();
+        };
+      }, [directories, sessionId]);
 
       useEffect(() => {
         let stopped = false;
@@ -368,17 +489,35 @@ window.__ModuleLoader__.load({
       }, []);
 
       const loading = board === null;
-      const headline = loading ? 'unknown' : (LABEL_KEY[board.headline] ? board.headline : 'unknown');
+      const providers = loading ? [] : providersOf(board);
+      // The model decides which status page the pill reports; an unrecognised model
+      // falls back to showing every provider rather than guessing wrong.
+      const matched = loading ? null : matchProviderId(selection);
+      const focused = matched === null ? [] : providers.filter((provider) => provider.id === matched);
+      const focus = focused.length > 0 ? matched : null;
+      const view = focus === null ? providers : focused;
+
+      const headline = focus === null
+        ? (loading ? 'unknown' : (LABEL_KEY[board.headline] ? board.headline : 'unknown'))
+        : (LABEL_KEY[focused[0].headline] ? focused[0].headline : 'unknown');
       const tone = loading ? 'unknown' : TONE[headline];
       const label = t(loading ? 'status.loading' : LABEL_KEY[headline]);
-      const brand = t('brand');
-      const health = loading
-        ? { total: 0, affected: 0, known: false, ratio: 0 }
-        : healthOf(board.services);
-      // Without the board there is no count to divide, so the incident severity
-      // stands in for it; an unreadable board still stays neutral grey.
+      const brand = focus === null ? t('brand') : focused[0].name;
+      // One provider down is as bad as the pill gets: the colour takes the worst
+      // share in view, so a red dot always means "something is fully down".
+      const worst = view.reduce(
+        (current, provider) => Math.max(current, providerRatio(provider)),
+        0,
+      );
+      const affected = view.reduce(
+        (total, provider) => total + healthOf(provider.services).affected,
+        0,
+      );
       const neutral = loading || headline === 'unknown';
-      const ratio = health.known ? health.ratio : ratioForHeadline(headline);
+      const ratio = view.length > 0 ? worst : ratioForHeadline(headline);
+      const modelLabel = selection === null
+        ? ''
+        : [selection.provider, selection.model].filter((part) => typeof part === 'string' && part !== '').join(' · ');
       // The custom property is read by the pill border, its dot, the badge and the
       // card edge, so one number colours the whole object.
       const healthStyle = {
@@ -393,7 +532,7 @@ window.__ModuleLoader__.load({
           {
             className: 'dsd-status-pill',
             'data-tone': tone,
-            'data-live': !loading && health.affected > 0 ? '1' : undefined,
+            'data-live': !loading && affected > 0 ? '1' : undefined,
             'data-busy': loading ? '1' : undefined,
             role: 'status',
             tabIndex: 0,
@@ -406,11 +545,13 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dsd-status-text' }, label),
         ),
         h(StatusPanel, {
-          board: board ?? { headline: 'unknown', services: [], incidents: [] },
+          board: board ?? { headline: 'unknown', providers: [] },
           t,
           loading,
           label,
           id: panelId,
+          focus,
+          model: modelLabel,
         }),
       );
     }
@@ -418,6 +559,20 @@ window.__ModuleLoader__.load({
     const inject = ['slots', 'locale'];
 
     function apply(ctx) {
+      // Follow the session's model when the catalog service is present; when it is
+      // not, the pill simply keeps showing every provider.
+      let modelDirectories;
+      ctx.inject(['modelDirectories'], (scope) => {
+        modelDirectories = scope.modelDirectories;
+        return () => {
+          modelDirectories = undefined;
+        };
+      });
+
+      function BoundPill(props) {
+        return h(StatusPill, { ...props, models: modelDirectories });
+      }
+
       ctx.effect(() => {
         const disposers = [];
         try {
@@ -456,7 +611,7 @@ window.__ModuleLoader__.load({
           order: ORDER,
           locale: NS,
           label: () => translate('brand'),
-        }, StatusPill)),
+        }, BoundPill)),
         'deepseek-status: pill',
       );
     }
@@ -470,6 +625,9 @@ window.__ModuleLoader__.load({
       healthOf,
       healthColor,
       ratioForHeadline,
+      providersOf,
+      providerRatio,
+      matchProviderId,
       splitServices,
       serviceTone,
       clockOf,

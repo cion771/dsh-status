@@ -1,10 +1,10 @@
 {
   "name": "@local/dsh-deepseek-status",
-  "version": "2.3.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "DeepSeek API Status: a live pill in the top-right of the Harness conversation header showing the DeepSeek API service status from status.deepseek.com.",
+  "description": "AI API Status: one pill in the top-right of the Harness conversation header that follows the session model and shows the matching provider status (DeepSeek, GPT/OpenAI, Claude/Anthropic).",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cion771/dsh-deepseek-status.git"
@@ -12,10 +12,12 @@
   "homepage": "https://github.com/cion771/dsh-deepseek-status#readme",
   "keywords": [
     "deepseek",
+    "openai",
+    "anthropic",
+    "claude",
+    "status-page",
     "deepseek-harness",
-    "dsh",
-    "dsh-plugin",
-    "status-page"
+    "dsh-plugin"
   ],
   "scripts": {
     "test": "node test/host.test.mjs && node test/client.test.mjs"

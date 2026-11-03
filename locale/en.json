@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "DeepSeek API Status",
-    "description": "Shows the live DeepSeek API service status from status.deepseek.com as a pill in the top-right of the conversation header."
+    "title": "AI API Status",
+    "description": "Shows the live service status of DeepSeek, GPT and Claude as one pill in the top-right of the conversation header."
   }
 }

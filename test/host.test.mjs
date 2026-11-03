@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  aggregateHeadline,
   combine,
   headlineFromIncidents,
   openIncidents,
@@ -16,6 +17,7 @@ import {
   readJsonValue,
   rscPayload,
   summarize,
+  summarizeStatuspage,
 } from '../index.js';
 
 const read = (name) => readFileSync(new URL(`./${name}`, import.meta.url), 'utf8');
@@ -119,5 +121,64 @@ const dirty = summarize({
 });
 assert.equal(dirty.headline, 'operational');
 assert.deepEqual(dirty.services, [{ name: 'A', status: 'operational' }]);
+
+// ---- Statuspage providers (OpenAI, Claude) --------------------------------
+const openai = summarizeStatuspage(JSON.parse(read('openai.summary.json')));
+assert.equal(openai.indicator, 'none');
+assert.equal(openai.headline, 'operational');
+assert.equal(openai.services.length, 25, 'every OpenAI component is carried');
+assert.ok(openai.services.some((service) => /Chat Completions/.test(service.name)));
+assert.ok(openai.services.every((service) => service.status === 'operational'));
+
+const anthropic = summarizeStatuspage(JSON.parse(read('anthropic.summary.json')));
+assert.equal(anthropic.headline, 'operational');
+assert.equal(anthropic.services.length, 6);
+assert.ok(anthropic.services.some((service) => /Claude API \(api\.anthropic\.com\)/.test(service.name)));
+
+// The vocabulary maps onto this bundle's own, groups are dropped, and the page
+// indicator is kept rather than recomputed.
+const reduced = summarizeStatuspage({
+  status: { indicator: 'major', description: 'Partial outage' },
+  components: [
+    { name: 'A', status: 'degraded_performance' },
+    { name: 'B', status: 'major_outage' },
+    { name: 'C', status: 'under_maintenance' },
+    { name: 'Group', status: 'operational', group: true },
+    { name: '', status: 'operational' },
+  ],
+  incidents: [{
+    name: 'X',
+    status: 'investigating',
+    shortlink: 'https://stspg.io/x',
+    updated_at: '2026-11-04T00:00:00Z',
+    components: [{}, {}, {}],
+  }],
+  scheduled_maintenances: [{ name: 'M', status: 'in_progress' }],
+});
+assert.equal(reduced.headline, 'partial_outage');
+assert.deepEqual(reduced.services.map((service) => [service.name, service.status]), [
+  ['A', 'degraded'],
+  ['B', 'full_outage'],
+  ['C', 'maintenance'],
+]);
+assert.equal(reduced.incidents.length, 2, 'incidents and maintenances are both carried');
+assert.equal(reduced.incidents[0].link, 'https://stspg.io/x');
+assert.equal(reduced.incidents[0].affected, 3);
+assert.equal(reduced.incidents[1].type, 'maintenance');
+
+// A payload without an indicator says unknown instead of guessing.
+assert.equal(summarizeStatuspage({}).headline, 'unknown');
+assert.deepEqual(summarizeStatuspage({}).services, []);
+assert.deepEqual(summarizeStatuspage(null).incidents, []);
+
+// The aggregate is the worst readable provider; unknown never wins.
+assert.equal(aggregateHeadline([]), 'unknown');
+assert.equal(aggregateHeadline([{ headline: 'unknown' }]), 'unknown');
+assert.equal(aggregateHeadline([{ headline: 'operational' }, { headline: 'unknown' }]), 'operational');
+assert.equal(aggregateHeadline([{ headline: 'operational' }, { headline: 'full_outage' }]), 'full_outage');
+assert.equal(
+  aggregateHeadline([{ headline: 'degraded' }, { headline: 'partial_outage' }]),
+  'partial_outage',
+);
 
 console.log('deepseek-status host parse: OK');

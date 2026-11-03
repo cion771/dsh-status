@@ -1,33 +1,34 @@
 /**
- * Host half of the DeepSeek API Status bundle.
+ * Host half of the AI API Status bundle.
  *
- * Two public sources, because neither one alone answers "is the DeepSeek API
- * healthy right now?":
+ * Three providers, two very different upstream shapes:
  *
- *   feed.atom  — the incident channel. Small, stable XML; every change carries its
- *                lifecycle status (investigating / monitoring / resolved …), the
- *                affected component names, and a permalink.
- *   the page   — the component board. A Flashcat Next.js page whose board exists
- *                only as an RSC flight payload inside the SSR HTML; this is the
- *                only place a per-component current status (degraded, partial
- *                outage …) is published.
+ *   DeepSeek — a Flashcat status board. The board exists only as an RSC flight
+ *              payload inside the SSR HTML, and no public JSON endpoint exposes it;
+ *              feed.atom carries the incident channel. Both are read and merged.
+ *   OpenAI, Claude — Atlassian Statuspage instances. One public
+ *              `/api/v2/summary.json` already carries the indicator, every
+ *              component's status, and the open incidents, so it is read directly.
  *
- * The board decides the headline when it is readable, the feed takes over when it
- * is not, and the feed is always the authority on which incidents are still open.
- * An unreachable or unparsable pair reports `unknown` instead of inventing a
- * status.
+ * Each provider is fetched and cached on its own TTL; one provider failing never
+ * blanks the others. The route publishes every provider plus the worst headline;
+ * an unparsable or unreachable provider says so instead of inventing a status.
  */
 
 export const name = 'dsh-deepseek-status';
 export const inject = ['webServer'];
 
 const ROUTE = '/api/dsh-deepseek-status/summary';
-const PAGE = 'https://status.deepseek.com/';
-const FEED = 'https://status.deepseek.com/feed.atom';
-const USER_AGENT = 'Mozilla/5.0 (compatible; dsh-deepseek-status/2)';
+const DEEPSEEK_PAGE = 'https://status.deepseek.com/';
+const DEEPSEEK_FEED = 'https://status.deepseek.com/feed.atom';
+const OPENAI_SUMMARY = 'https://status.openai.com/api/v2/summary.json';
+const ANTHROPIC_SUMMARY = 'https://status.anthropic.com/api/v2/summary.json';
+
+const USER_AGENT = 'Mozilla/5.0 (compatible; dsh-deepseek-status/2.4)';
 const FETCH_TIMEOUT_MS = 9000;
 const PAGE_TTL_MS = 120000;
 const FEED_TTL_MS = 60000;
+const STATUSPAGE_TTL_MS = 60000;
 const SNAPSHOT_TTL_MS = 30000;
 const STALE_MS = 10 * 60000;
 
@@ -45,6 +46,53 @@ const COMPONENT_STATES = new Set(Object.keys(SEVERITY));
 
 /** Incident statuses that mean the change is over. */
 const CLOSED_STATUSES = new Set(['resolved', 'completed', 'cancelled', 'canceled']);
+
+/** Statuspage component status → this bundle's vocabulary. */
+const STATUSPAGE_COMPONENT = {
+  operational: 'operational',
+  degraded_performance: 'degraded',
+  partial_outage: 'partial_outage',
+  major_outage: 'full_outage',
+  under_maintenance: 'maintenance',
+};
+
+/** Statuspage page indicator → this bundle's headline. */
+const STATUSPAGE_INDICATOR = {
+  none: 'operational',
+  minor: 'degraded',
+  major: 'partial_outage',
+  critical: 'full_outage',
+  maintenance: 'maintenance',
+};
+
+const PROVIDERS = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    kind: 'board',
+    page: DEEPSEEK_PAGE,
+    feed: DEEPSEEK_FEED,
+    pageTtl: PAGE_TTL_MS,
+    feedTtl: FEED_TTL_MS,
+    source: DEEPSEEK_PAGE,
+  },
+  {
+    id: 'openai',
+    name: 'GPT',
+    kind: 'statuspage',
+    url: OPENAI_SUMMARY,
+    ttl: STATUSPAGE_TTL_MS,
+    source: 'https://status.openai.com',
+  },
+  {
+    id: 'anthropic',
+    name: 'Claude',
+    kind: 'statuspage',
+    url: ANTHROPIC_SUMMARY,
+    ttl: STATUSPAGE_TTL_MS,
+    source: 'https://status.anthropic.com',
+  },
+];
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
@@ -197,7 +245,7 @@ export function parseFeed(xml) {
   return entries;
 }
 
-/** Fold the parsed component board into the compact shape the pill renders. */
+/** Fold the parsed DeepSeek component board into the compact shape the pill renders. */
 export function summarize({ components, activeChanges, nowSeconds }) {
   const incidents = [];
   const byName = new Map();
@@ -262,7 +310,7 @@ export function headlineFromIncidents(incidents) {
 }
 
 /**
- * Combine both sources into one snapshot.
+ * Combine both DeepSeek sources into one provider snapshot.
  *
  * `board` wins the headline and the per-component list because it is the only
  * source that publishes them; `feed` wins the incident list because it is the
@@ -295,6 +343,58 @@ export function combine({ board, feed, boardOk, feedOk, now }) {
   };
 }
 
+/**
+ * Normalise a Statuspage `/api/v2/summary.json` payload into this bundle's shape.
+ *
+ * The indicator already is the page's own worst-state answer, so it is kept as the
+ * headline rather than recomputed from the components.
+ */
+export function summarizeStatuspage(json) {
+  const indicator = typeof json?.status?.indicator === 'string' ? json.status.indicator : 'unknown';
+  const headline = STATUSPAGE_INDICATOR[indicator] ?? 'unknown';
+  const components = Array.isArray(json?.components) ? json.components : [];
+  const services = [];
+  for (const component of components) {
+    if (!component || component.group === true) continue;
+    const name = typeof component.name === 'string' ? component.name : '';
+    if (name === '') continue;
+    services.push({ name, status: STATUSPAGE_COMPONENT[component.status] ?? 'unknown' });
+  }
+  const incidents = (Array.isArray(json?.incidents) ? json.incidents : [])
+    .filter((incident) => incident && typeof incident.name === 'string')
+    .map((incident) => ({
+      type: 'incident',
+      status: typeof incident.status === 'string' ? incident.status : 'unknown',
+      title: incident.name,
+      link: typeof incident.shortlink === 'string' ? incident.shortlink : '',
+      updatedAt: Date.parse(incident.updated_at) || null,
+      affected: Array.isArray(incident.components) ? incident.components.length : 0,
+    }));
+  const maintenances = (Array.isArray(json?.scheduled_maintenances) ? json.scheduled_maintenances : [])
+    .filter((entry) => entry && typeof entry.name === 'string')
+    .map((entry) => ({
+      type: 'maintenance',
+      status: typeof entry.status === 'string' ? entry.status : 'scheduled',
+      title: entry.name,
+      link: typeof entry.shortlink === 'string' ? entry.shortlink : '',
+      updatedAt: Date.parse(entry.updated_at) || null,
+      affected: Array.isArray(entry.components) ? entry.components.length : 0,
+    }));
+  return {
+    headline,
+    services,
+    incidents: [...incidents, ...maintenances],
+    indicator,
+  };
+}
+
+/** The worst headline across providers, unknown only when nothing is readable. */
+export function aggregateHeadline(providers) {
+  const known = providers.filter((provider) => provider.headline !== 'unknown');
+  if (known.length === 0) return 'unknown';
+  return worstStatus(known.map((provider) => provider.headline));
+}
+
 async function getText(url, accept) {
   const response = await fetch(url, {
     headers: { 'user-agent': USER_AGENT, accept, 'accept-language': 'en' },
@@ -305,85 +405,121 @@ async function getText(url, accept) {
   return response.text();
 }
 
-async function fetchBoard() {
-  const html = await getText(PAGE, 'text/html,application/xhtml+xml');
-  const payload = rscPayload(html);
-  if (payload === '') throw new Error('status page carried no flight payload');
-  const components = readJsonValue(payload, 'components');
-  const activeChanges = readJsonValue(payload, 'active_changes');
-  if (!Array.isArray(activeChanges)) throw new Error('status page carried no active_changes');
-  return summarize({
-    components: Array.isArray(components) ? components : [],
-    activeChanges,
-    nowSeconds: Math.floor(Date.now() / 1000),
-  });
-}
+async function fetchDeepSeek() {
+  const [pageResult, feedResult] = await Promise.allSettled([
+    getText(DEEPSEEK_PAGE, 'text/html,application/xhtml+xml'),
+    getText(DEEPSEEK_FEED, 'application/atom+xml,application/xml,text/xml'),
+  ]);
 
-async function fetchFeed() {
-  return parseFeed(await getText(FEED, 'application/atom+xml,application/xml,text/xml'));
+  let board;
+  let boardError;
+  if (pageResult.status === 'fulfilled') {
+    try {
+      const payload = rscPayload(pageResult.value);
+      if (payload === '') throw new Error('status page carried no flight payload');
+      const components = readJsonValue(payload, 'components');
+      const activeChanges = readJsonValue(payload, 'active_changes');
+      if (!Array.isArray(activeChanges)) throw new Error('status page carried no active_changes');
+      board = summarize({
+        components: Array.isArray(components) ? components : [],
+        activeChanges,
+        nowSeconds: Math.floor(Date.now() / 1000),
+      });
+    } catch (error) {
+      boardError = String(error && error.message ? error.message : error);
+    }
+  } else {
+    boardError = String(pageResult.reason && pageResult.reason.message ? pageResult.reason.message : pageResult.reason);
+  }
+
+  let feed;
+  let feedError;
+  if (feedResult.status === 'fulfilled') {
+    feed = parseFeed(feedResult.value);
+  } else {
+    feedError = String(feedResult.reason && feedResult.reason.message ? feedResult.reason.message : feedResult.reason);
+  }
+
+  const boardOk = board !== undefined;
+  const feedOk = Array.isArray(feed);
+  const merged = combine({ board, feed: feedOk ? feed : [], boardOk, feedOk, now: Date.now() });
+  return {
+    ...merged,
+    stale: !boardOk || !feedOk,
+    errors: [boardError, feedError].filter((error) => typeof error === 'string'),
+  };
 }
 
 export function apply(ctx) {
-  const state = {
-    board: { at: 0, value: undefined, error: undefined },
-    feed: { at: 0, value: undefined, error: undefined },
-    snapshot: { at: 0, value: undefined },
-    inflight: undefined,
-  };
+  let snapshot = { at: 0, value: undefined };
+  let inflight;
+  /** provider id → { at, value, error } */
+  const cache = new Map();
+
+  async function loadProvider(provider) {
+    const now = Date.now();
+    const state = cache.get(provider.id) ?? { at: 0, value: undefined, error: undefined };
+    const ttl = provider.kind === 'board' ? Math.min(provider.pageTtl, provider.feedTtl) : provider.ttl;
+    if (state.value === undefined || now - state.at > ttl) {
+      try {
+        const value = provider.kind === 'board'
+          ? await fetchDeepSeek()
+          : summarizeStatuspage(JSON.parse(await getText(provider.url, 'application/json')));
+        const next = { at: Date.now(), value, error: undefined };
+        cache.set(provider.id, next);
+        return next;
+      } catch (error) {
+        const message = String(error && error.message ? error.message : error);
+        const next = { at: state.at, value: state.value, error: message };
+        cache.set(provider.id, next);
+        ctx.logger?.warn?.(`[deepseek-status] ${provider.id}: ${message}`);
+        return next;
+      }
+    }
+    return state;
+  }
 
   async function refresh() {
     const now = Date.now();
-    if (state.snapshot.value !== undefined && now - state.snapshot.at < SNAPSHOT_TTL_MS) return state.snapshot.value;
-    if (state.inflight !== undefined) return state.inflight;
+    if (snapshot.value !== undefined && now - snapshot.at < SNAPSHOT_TTL_MS) return snapshot.value;
+    if (inflight !== undefined) return inflight;
 
-    state.inflight = (async () => {
-      const jobs = [];
-      if (state.board.value === undefined || now - state.board.at > PAGE_TTL_MS) {
-        jobs.push(fetchBoard().then(
-          (value) => {
-            state.board = { at: Date.now(), value, error: undefined };
-          },
-          (error) => {
-            const message = String(error && error.message ? error.message : error);
-            state.board = { ...state.board, error: message };
-            ctx.logger?.warn?.(`[deepseek-status] board: ${message}`);
-          },
-        ));
-      }
-      if (state.feed.value === undefined || now - state.feed.at > FEED_TTL_MS) {
-        jobs.push(fetchFeed().then(
-          (value) => {
-            state.feed = { at: Date.now(), value, error: undefined };
-          },
-          (error) => {
-            const message = String(error && error.message ? error.message : error);
-            state.feed = { ...state.feed, error: message };
-            ctx.logger?.warn?.(`[deepseek-status] feed: ${message}`);
-          },
-        ));
-      }
-      await Promise.all(jobs);
+    inflight = (async () => {
+      const states = await Promise.all(PROVIDERS.map(async (provider) => ({
+        provider,
+        state: await loadProvider(provider),
+      })));
 
-      const boardFresh = state.board.value !== undefined && Date.now() - state.board.at < STALE_MS;
-      const feedFresh = state.feed.value !== undefined && Date.now() - state.feed.at < STALE_MS;
-      const snapshot = combine({
-        board: boardFresh ? state.board.value : undefined,
-        feed: feedFresh ? state.feed.value : [],
-        boardOk: boardFresh,
-        feedOk: feedFresh,
-        now: Date.now(),
+      const providers = states.map(({ provider, state }) => {
+        const fresh = state.value !== undefined && Date.now() - state.at < STALE_MS;
+        return {
+          id: provider.id,
+          name: provider.name,
+          source: provider.source,
+          ok: fresh,
+          stale: !fresh,
+          headline: fresh ? state.value.headline : 'unknown',
+          services: fresh ? state.value.services : [],
+          incidents: fresh ? state.value.incidents : [],
+          fetchedAt: state.at,
+          error: state.error,
+        };
       });
-      snapshot.stale = !boardFresh || !feedFresh;
-      snapshot.errors = [state.board.error, state.feed.error].filter((error) => typeof error === 'string');
-      snapshot.source = PAGE;
-      state.snapshot = { at: Date.now(), value: snapshot };
-      return snapshot;
+
+      const value = {
+        ok: providers.some((provider) => provider.ok),
+        headline: aggregateHeadline(providers),
+        providers,
+        fetchedAt: Date.now(),
+      };
+      snapshot = { at: Date.now(), value };
+      return value;
     })();
 
     try {
-      return await state.inflight;
+      return await inflight;
     } finally {
-      state.inflight = undefined;
+      inflight = undefined;
     }
   }
 
@@ -391,13 +527,13 @@ export function apply(ctx) {
     try {
       sendJson(res, 200, await refresh());
     } catch (error) {
-      sendJson(res, 500, { ok: false, headline: 'unknown', error: String(error && error.message ? error.message : error) });
+      sendJson(res, 500, { ok: false, headline: 'unknown', providers: [], error: String(error && error.message ? error.message : error) });
     }
   };
 
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: ROUTE, handler }), 'deepseek-status: route');
 
-  // Warm both sources so the first pill render does not wait for the network.
+  // Warm every source so the first pill render does not wait for the network.
   ctx.effect(() => {
     const timer = setTimeout(() => {
       refresh().catch(() => undefined);
