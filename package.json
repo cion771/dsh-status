@@ -1,5 +1,5 @@
 {
-  "name": "@local/dsh-deepseek-status",
+  "name": "@local/dsh-status",
   "version": "3.1.0",
   "private": true,
   "type": "module",

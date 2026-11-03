@@ -18,7 +18,7 @@ let definition;
 const window = { __ModuleLoader__: { load(next) { definition = next; } } };
 new Function('window', source)(window);
 
-assert.equal(definition.id, '@local/dsh-deepseek-status', 'module id must equal the package name');
+assert.equal(definition.id, '@local/dsh-status', 'module id must equal the package name');
 
 const React = {
   createElement(type, props, ...children) {
@@ -368,4 +368,4 @@ assert.ok(described.includes('GPT — 正常'));
 assert.ok(described.includes('· DeepSeek：网页/API 部分中断（监控中）'));
 assert.ok(!described.includes('上传文件服务'), 'healthy components stay out of the summary');
 
-console.log('deepseek-status client logic: OK');
+console.log('dsh-status client logic: OK');

@@ -23,7 +23,7 @@
 git clone https://github.com/cion771/dsh-status.git
 ```
 
-然后在 Harness 里把该目录作为 bundle 安装（`plugin_manager` 的 `install_bundle`，target 填包目录的绝对路径）。安装后行 id 为 `deepseek-status`，插件列表里显示为 “AI API 状态”。
+然后在 Harness 里把该目录作为 bundle 安装（`plugin_manager` 的 `install_bundle`，target 填包目录的绝对路径）。安装后行 id 为 `dsh-status`，插件列表里显示为 “AI API 状态”。
 
 ## 状态文案
 
@@ -78,13 +78,13 @@ git clone https://github.com/cion771/dsh-status.git
 4. 每个供应商**独立缓存、独立降级**：一家超时不会拖空另外两家，失败的会标 `stale` 并在卡片里写明原因；
 5. 三家都不可读才报 `unknown`，并保留 10 分钟内的旧数据。
 
-Client 不访问外网，只轮询本地路由 `GET /api/dsh-deepseek-status/summary`（60 s）。
+Client 不访问外网，只轮询本地路由 `GET /api/dsh-status/summary`（60 s）。
 
 ## 文件
 
 - `index.js` — 供应商表、抓取与缓存、RSC 解析（`rscPayload` / `readJsonValue`）、Atom 解析（`parseFeed`）、Statuspage 归一化（`summarizeStatuspage`）、合并（`summarize` / `combine` / `aggregateHeadline`）、路由注册。
 - `client.js` — 插槽注册、中英词典、样式、轮询、按供应商分块的卡片。
-- `cordis.patch.yml` — 插入 `deepseek-status` 行。
+- `cordis.patch.yml` — 插入 `dsh-status` 行。
 - `locale/*.json` — 插件列表里的标题与描述。
 - `icon.svg` — 图标（心电波形 + 状态点）。
 - `test/` — 离线回归夹具：`status.html`、`feed.atom`、`openai.summary.json`、`anthropic.summary.json`，无需网络。

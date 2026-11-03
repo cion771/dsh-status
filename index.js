@@ -15,16 +15,16 @@
  * an unparsable or unreachable provider says so instead of inventing a status.
  */
 
-export const name = 'dsh-deepseek-status';
+export const name = 'dsh-status';
 export const inject = ['webServer'];
 
-const ROUTE = '/api/dsh-deepseek-status/summary';
+const ROUTE = '/api/dsh-status/summary';
 const DEEPSEEK_PAGE = 'https://status.deepseek.com/';
 const DEEPSEEK_FEED = 'https://status.deepseek.com/feed.atom';
 const OPENAI_SUMMARY = 'https://status.openai.com/api/v2/summary.json';
 const ANTHROPIC_SUMMARY = 'https://status.anthropic.com/api/v2/summary.json';
 
-const USER_AGENT = 'Mozilla/5.0 (compatible; dsh-deepseek-status/2.4)';
+const USER_AGENT = 'Mozilla/5.0 (compatible; dsh-status/2.4)';
 const FETCH_TIMEOUT_MS = 9000;
 const PAGE_TTL_MS = 120000;
 const FEED_TTL_MS = 60000;
@@ -472,7 +472,7 @@ export function apply(ctx) {
         const message = String(error && error.message ? error.message : error);
         const next = { at: state.at, value: state.value, error: message };
         cache.set(provider.id, next);
-        ctx.logger?.warn?.(`[deepseek-status] ${provider.id}: ${message}`);
+        ctx.logger?.warn?.(`[dsh-status] ${provider.id}: ${message}`);
         return next;
       }
     }
@@ -531,7 +531,7 @@ export function apply(ctx) {
     }
   };
 
-  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: ROUTE, handler }), 'deepseek-status: route');
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: ROUTE, handler }), 'dsh-status: route');
 
   // Warm every source so the first pill render does not wait for the network.
   ctx.effect(() => {
@@ -539,5 +539,5 @@ export function apply(ctx) {
       refresh().catch(() => undefined);
     }, 1500);
     return () => clearTimeout(timer);
-  }, 'deepseek-status: warm-up');
+  }, 'dsh-status: warm-up');
 }

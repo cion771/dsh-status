@@ -11,7 +11,7 @@
  * last board and marks itself stale.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-deepseek-status',
+  id: '@local/dsh-status',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -19,11 +19,11 @@ window.__ModuleLoader__.load({
 
     let panelSeq = 0;
 
-    const NS = 'dsh-deepseek-status';
+    const NS = 'dsh-status';
     const SLOT = 'conversation.session.header.utilities';
-    const ENTRY_ID = 'deepseek-status';
+    const ENTRY_ID = 'dsh-status';
     const ORDER = 5;
-    const API = '/api/dsh-deepseek-status/summary';
+    const API = '/api/dsh-status/summary';
     const POLL_MS = 60000;
 
     const zh = {
@@ -579,7 +579,7 @@ window.__ModuleLoader__.load({
           disposers.push(ctx.locale.register(NS, 'zh', zh));
           disposers.push(ctx.locale.register(NS, 'en', en));
         } catch (error) {
-          console.warn('[deepseek-status] locale registration failed:', error);
+          console.warn('[dsh-status] locale registration failed:', error);
         }
         return () => {
           for (const dispose of disposers.splice(0)) {
@@ -590,19 +590,19 @@ window.__ModuleLoader__.load({
             }
           }
         };
-      }, 'deepseek-status: dictionaries');
+      }, 'dsh-status: dictionaries');
 
       const translate = ctx.locale.bind(NS);
 
       ctx.effect(() => {
         const tag = document.createElement('style');
-        tag.dataset.plugin = '@local/dsh-deepseek-status';
+        tag.dataset.plugin = '@local/dsh-status';
         tag.textContent = CSS;
         document.head.appendChild(tag);
         return () => {
           tag.remove();
         };
-      }, 'deepseek-status: styles');
+      }, 'dsh-status: styles');
 
       ctx.effect(
         () => ctx.slots.inject(SLOT, () => ctx.slots.register({
@@ -612,7 +612,7 @@ window.__ModuleLoader__.load({
           locale: NS,
           label: () => translate('brand'),
         }, BoundPill)),
-        'deepseek-status: pill',
+        'dsh-status: pill',
       );
     }
 

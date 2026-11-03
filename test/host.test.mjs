@@ -181,4 +181,4 @@ assert.equal(
   'partial_outage',
 );
 
-console.log('deepseek-status host parse: OK');
+console.log('dsh-status host parse: OK');
