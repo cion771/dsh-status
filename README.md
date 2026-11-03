@@ -20,7 +20,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/cion771/dsh-deepseek-status.git
+git clone https://github.com/cion771/dsh-status.git
 ```
 
 然后在 Harness 里把该目录作为 bundle 安装（`plugin_manager` 的 `install_bundle`，target 填包目录的绝对路径）。安装后行 id 为 `deepseek-status`，插件列表里显示为 “AI API 状态”。
