@@ -1,0 +1,49 @@
+{
+  "name": "@local/dsh-deepseek-status",
+  "version": "2.3.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "DeepSeek API Status: a live pill in the top-right of the Harness conversation header showing the DeepSeek API service status from status.deepseek.com.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cion771/dsh-deepseek-status.git"
+  },
+  "homepage": "https://github.com/cion771/dsh-deepseek-status#readme",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "status-page"
+  ],
+  "scripts": {
+    "test": "node test/host.test.mjs && node test/client.test.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}
