@@ -36,6 +36,7 @@ window.__ModuleLoader__.load({
       'status.unknown': '未知',
       'status.loading': '读取中',
       'panel.title': 'AI API 服务状态',
+      'panel.titleOne': '{name} API 服务状态',
       'panel.overall': '整体状态',
       'panel.detail.allHealthy': '{count} 项组件全部正常',
       'panel.detail.rest': '其余 {count} 项正常',
@@ -69,6 +70,7 @@ window.__ModuleLoader__.load({
       'status.unknown': 'Unknown',
       'status.loading': 'Loading',
       'panel.title': 'AI API status',
+      'panel.titleOne': '{name} API status',
       'panel.overall': 'Overall',
       'panel.detail.allHealthy': '{count} components operational',
       'panel.detail.rest': '{count} more operational',
@@ -387,7 +389,9 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'dsd-panel', id, role: 'tooltip' },
         h('div', { className: 'dsd-panel-head' },
-          h('span', { className: 'dsd-panel-title' }, t('panel.title')),
+          h('span', { className: 'dsd-panel-title' }, providers.length === 1
+            ? t('panel.titleOne', { name: providers[0].name })
+            : t('panel.title')),
           h('span', { className: 'dsd-badge', 'data-tone': tone }, loading ? t('status.loading') : label),
         ),
         ...(typeof model === 'string' && model !== ''

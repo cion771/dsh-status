@@ -132,6 +132,7 @@ assert.equal(module.ratioForHeadline('unknown'), 0);
 // ---- translation -----------------------------------------------------------
 const dict = {
   'panel.title': 'AI API 服务状态',
+  'panel.titleOne': '{name} API 服务状态',
   'panel.overall': '整体状态',
   'panel.detail.allHealthy': '{count} 项组件全部正常',
   'panel.detail.rest': '其余 {count} 项正常',
@@ -314,6 +315,7 @@ const focusedBody = focusedCard.children.slice(1, -1);
 const focusedProviders = focusedBody.filter((node) => node.props.className === 'dsd-provider');
 assert.equal(focusedProviders.length, 1, 'only the model’s provider gets a block');
 assert.equal(focusedProviders[0].children[1].children[0], 'DeepSeek');
+assert.equal(focusedCard.children[0].children[0].children[0], 'DeepSeek API 服务状态', 'the narrowed card is named after its provider');
 const focusedRows = focusedBody.filter((node) => node.props.className === 'dsd-sub');
 assert.equal(focusedRows.length, 7, 'every DeepSeek component, and only DeepSeek ones');
 assert.equal(
