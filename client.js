@@ -316,10 +316,13 @@ window.__ModuleLoader__.load({
     }
 
     function StatusPanel(props) {
-      const { board, t, loading, label, id, model } = props;
-      // Every provider is listed at once: the pill focuses one of them, but the card
-      // is the whole board.
-      const providers = loading ? [] : providersOf(board);
+      const { board, t, loading, label, id, model, focus } = props;
+      // The card follows the pilled model: one provider when the model resolves to
+      // one of them, all of them when it does not. Within a provider every
+      // component is listed, never collapsed into a count.
+      const all = loading ? [] : providersOf(board);
+      const scoped = focus === null || focus === undefined ? [] : all.filter((provider) => provider.id === focus);
+      const providers = scoped.length > 0 ? scoped : all;
       const tone = loading ? 'unknown' : TONE[board.headline] ?? 'unknown';
 
       const rows = [];
@@ -538,6 +541,7 @@ window.__ModuleLoader__.load({
           label,
           id: panelId,
           model: modelLabel,
+          focus,
         }),
       );
     }

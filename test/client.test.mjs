@@ -306,6 +306,32 @@ assert.equal(
   '来源 https://status.deepseek.com/ · https://status.openai.com · https://status.anthropic.com',
 );
 
+// A model that resolves to one provider narrows the card to that provider alone.
+const focusedCard = module.StatusPanel({
+  board, t, loading: false, label: '部分中断', id: 'p8', focus: 'deepseek',
+});
+const focusedBody = focusedCard.children.slice(1, -1);
+const focusedProviders = focusedBody.filter((node) => node.props.className === 'dsd-provider');
+assert.equal(focusedProviders.length, 1, 'only the model’s provider gets a block');
+assert.equal(focusedProviders[0].children[1].children[0], 'DeepSeek');
+const focusedRows = focusedBody.filter((node) => node.props.className === 'dsd-sub');
+assert.equal(focusedRows.length, 7, 'every DeepSeek component, and only DeepSeek ones');
+assert.equal(
+  focusedRows.some((row) => row.children[1].children[0] === 'Chat Completions'),
+  false,
+  'no GPT components leak into a DeepSeek card',
+);
+
+// A focus the board does not carry falls back to the whole board, not an empty card.
+const unknownFocus = module.StatusPanel({
+  board, t, loading: false, label: '部分中断', id: 'p9', focus: 'qwen',
+});
+assert.equal(
+  unknownFocus.children.filter((node) => node.props.className === 'dsd-provider').length,
+  3,
+  'an unresolved focus shows everything',
+);
+
 // The card still names the model the pill followed.
 const modelled = module.StatusPanel({
   board,
