@@ -405,6 +405,19 @@ async function getText(url, accept) {
   return response.text();
 }
 
+/**
+ * A provider with no readable source must fail loudly.
+ *
+ * Folding two failed reads into a "successful" empty board would publish a fresh
+ * timestamp and an empty component list — the pill would look current while saying
+ * nothing, and the card could not explain why.
+ */
+export function requireReadable({ boardOk, feedOk, errors }) {
+  if (boardOk || feedOk) return;
+  const reason = Array.isArray(errors) ? errors.filter(Boolean).join(' | ') : '';
+  throw new Error(reason || 'both DeepSeek sources failed');
+}
+
 async function fetchDeepSeek() {
   const [pageResult, feedResult] = await Promise.allSettled([
     getText(DEEPSEEK_PAGE, 'text/html,application/xhtml+xml'),
@@ -442,11 +455,15 @@ async function fetchDeepSeek() {
 
   const boardOk = board !== undefined;
   const feedOk = Array.isArray(feed);
+  const errors = [boardError, feedError].filter((error) => typeof error === 'string');
+  // Two silent failures must not look like a readable board that happens to say
+  // "unknown": without this the provider keeps a fresh timestamp and an empty list.
+  requireReadable({ boardOk, feedOk, errors });
   const merged = combine({ board, feed: feedOk ? feed : [], boardOk, feedOk, now: Date.now() });
   return {
     ...merged,
     stale: !boardOk || !feedOk,
-    errors: [boardError, feedError].filter((error) => typeof error === 'string'),
+    errors,
   };
 }
 
@@ -465,7 +482,11 @@ export function apply(ctx) {
         const value = provider.kind === 'board'
           ? await fetchDeepSeek()
           : summarizeStatuspage(JSON.parse(await getText(provider.url, 'application/json')));
-        const next = { at: Date.now(), value, error: undefined };
+        // A partial read (one source down) still carries its reason for the card.
+        const partial = Array.isArray(value?.errors) && value.errors.length > 0
+          ? value.errors.join(' | ')
+          : undefined;
+        const next = { at: Date.now(), value, error: partial };
         cache.set(provider.id, next);
         return next;
       } catch (error) {

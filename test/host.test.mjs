@@ -17,6 +17,7 @@ import {
   readJsonValue,
   rscPayload,
   summarize,
+  requireReadable,
   summarizeStatuspage,
 } from '../index.js';
 
@@ -180,5 +181,14 @@ assert.equal(
   aggregateHeadline([{ headline: 'degraded' }, { headline: 'partial_outage' }]),
   'partial_outage',
 );
+
+// A provider with nothing readable must fail loudly instead of publishing an
+// empty board with a fresh timestamp.
+assert.throws(() => requireReadable({ boardOk: false, feedOk: false, errors: [] }),
+  /both DeepSeek sources failed/);
+assert.throws(() => requireReadable({ boardOk: false, feedOk: false, errors: ['page 500', 'feed 429'] }),
+  /page 500 | feed 429/);
+assert.doesNotThrow(() => requireReadable({ boardOk: true, feedOk: false, errors: ['feed 429'] }));
+assert.doesNotThrow(() => requireReadable({ boardOk: false, feedOk: true, errors: ['page 500'] }));
 
 console.log('dsh-status host parse: OK');

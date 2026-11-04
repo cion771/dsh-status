@@ -76,7 +76,7 @@ git clone https://github.com/cion771/dsh-status.git
 2. **DeepSeek** 看板决定组件状态与 headline，Atom 订阅决定事件清单；
 3. **看板挂了**用订阅推导 headline（`investigating|identified → 部分中断`、`monitoring → 性能下降`），**订阅挂了**用看板 `active_changes` 兜底；
 4. 每个供应商**独立缓存、独立降级**：一家超时不会拖空另外两家，失败的会标 `stale` 并在卡片里写明原因；
-5. 三家都不可读才报 `unknown`，并保留 10 分钟内的旧数据。
+5. 三家都不可读才报 `unknown`，并保留 10 分钟内的旧数据；某一家两个源都取不到时**直接判失败**（卡片显示「暂不可用」+ 原因），不会拿一个空列表冒充「刚刷新过」。
 
 Client 不访问外网，只轮询本地路由 `GET /api/dsh-status/summary`（60 s）。
 
@@ -99,7 +99,7 @@ Client 不访问外网，只轮询本地路由 `GET /api/dsh-status/summary`（6
 ```bash
 node test/host.test.mjs    # 解析与合并：RSC 看板、Atom 订阅、Statuspage 归一化、聚合 headline、四种兜底分支
 node test/client.test.mjs  # 渲染契约：颜色梯度、三家分块卡片、文案、兜底
-npm test                   # 两者一起（163 条断言，无依赖、无网络）
+npm test                   # 两者一起（193 条断言，无依赖、无网络）
 ```
 
 ## License
