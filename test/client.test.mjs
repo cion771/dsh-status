@@ -268,22 +268,27 @@ assert.deepEqual(
   ['部分中断', '正常', '暂不可用'],
 );
 
-// DeepSeek shows each impaired component, then a count of the rest.
-const affectedRows = body.filter((node) => node.props.className === 'dsd-sub');
-assert.equal(affectedRows.length, 3, 'only the impaired components get a row');
-assert.deepEqual(affectedRows.map((row) => row.props['data-tone']), ['error', 'error', 'warn']);
-assert.equal(affectedRows[0].children[1].children[0], 'DeepSeek V4.1 Flash API服务(API Service)');
-assert.equal(affectedRows[0].children[2].children[0], '部分中断');
-
-const quiet = body.filter((node) => String(node.props.className).startsWith('dsd-quiet'));
-assert.equal(quiet[0].children[0], '其余 4 项正常', 'the healthy rest is counted, not listed');
-
-// GPT is healthy: one line, no rows.
-const gptQuiet = quiet.find((node) => node.children[0] === '2 项组件全部正常');
-assert.ok(gptQuiet, 'a healthy provider states its component count');
+// Every component of every provider is listed, impaired ones first.
+const subRows = body.filter((node) => node.props.className === 'dsd-sub');
+assert.equal(subRows.length, 9, 'seven DeepSeek components plus two GPT components');
+assert.deepEqual(subRows.slice(0, 3).map((row) => row.props['data-tone']), ['error', 'error', 'warn']);
+assert.equal(subRows[0].children[1].children[0], 'DeepSeek V4.1 Flash API服务(API Service)');
+assert.equal(subRows[0].children[2].children[0], '部分中断');
+assert.deepEqual(subRows.slice(3, 7).map((row) => row.props['data-tone']), ['ok', 'ok', 'ok', 'ok']);
+assert.deepEqual(
+  subRows.slice(7).map((row) => row.children[1].children[0]),
+  ['Chat Completions', 'Responses'],
+  'a healthy provider still lists its components instead of a count',
+);
+assert.equal(subRows[7].children[2].children[0], '正常');
+assert.equal(
+  body.filter((node) => String(node.props.className).startsWith('dsd-quiet')).length,
+  1,
+  'only the unreadable provider needs a note',
+);
 
 // Claude could not be read: it says so and carries the reason.
-const claudeQuiet = quiet.find((node) => String(node.children[0]).includes('503'));
+const claudeQuiet = body.find((node) => String(node.children[0]).includes('503'));
 assert.ok(claudeQuiet, 'an unreadable provider reports its error');
 
 // The incident keeps its state and permalink.
@@ -301,30 +306,21 @@ assert.equal(
   '来源 https://status.deepseek.com/ · https://status.openai.com · https://status.anthropic.com',
 );
 
-// A focused card follows one provider and summarises the rest.
-const focusedPanel = module.StatusPanel({
+// The card still names the model the pill followed.
+const modelled = module.StatusPanel({
   board,
   t,
   loading: false,
   label: '部分中断',
   id: 'p7',
-  focus: 'deepseek',
   model: 'deepseek · deepseek-v4.1-flash',
 });
-const focusedBody = focusedPanel.children.slice(1, -1);
-const focusedProviders = focusedBody.filter((node) => node.props.className === 'dsd-provider');
-assert.equal(focusedProviders.length, 1, 'only the selected provider gets a block');
-assert.equal(focusedProviders[0].children[1].children[0], 'DeepSeek');
 assert.equal(
-  focusedBody.find((node) => node.props.className === 'dsd-model').children[0],
+  modelled.children.find((node) => node.props.className === 'dsd-model').children[0],
   '当前模型 deepseek · deepseek-v4.1-flash',
 );
-assert.equal(
-  focusedBody.find((node) => node.props.className === 'dsd-others').children[0],
-  '其他 GPT 正常 · Claude 暂不可用',
-);
-assert.equal(focusedBody.some((node) => node.props.className === 'dsd-provider'
-  && node.children[1].children[0] === 'GPT'), false, 'other providers are not given a block');
+assert.equal(modelled.children.filter((node) => node.props.className === 'dsd-provider').length, 3,
+  'the card lists every provider whether or not the pill focused one');
 
 // Loading and unreadable boards render an explanation instead of empty space.
 const empty = module.StatusPanel({ board: { headline: 'unknown', providers: [] }, t, loading: false, label: '未知', id: 'p4' });

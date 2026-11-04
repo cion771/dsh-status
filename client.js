@@ -105,9 +105,9 @@ window.__ModuleLoader__.load({
 .dsd-status-pill[data-busy="1"] .dsd-status-dot{background:var(--dsw-alias-brand-primary);animation:dsd-status-pulse 1.4s ease-in-out infinite}
 .dsd-status-brand{overflow:hidden;text-overflow:ellipsis;color:var(--dsw-alias-label-primary);font-weight:600}
 .dsd-status-text{overflow:hidden;text-overflow:ellipsis}
-.dsd-panel{display:none;position:absolute;top:calc(100% + 8px);right:-6px;z-index:70;box-sizing:border-box;width:352px;max-width:min(352px, calc(100vw - 32px));padding:12px 14px;border:1px solid color-mix(in srgb, var(--dsd-health, var(--dsw-alias-border-l2)) 40%, var(--dsw-alias-border-l2));border-radius:10px;background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 28px rgba(0,0,0,.22);color:var(--dsw-alias-label-primary);font-family:inherit;font-size:12px;font-weight:400;line-height:18px;text-align:left;white-space:normal;user-select:text}
+.dsd-panel{display:none;position:absolute;top:calc(100% + 8px);right:-6px;z-index:70;box-sizing:border-box;width:360px;max-width:min(360px, calc(100vw - 32px));max-height:min(72vh, 620px);overflow-y:auto;overscroll-behavior:contain;padding:12px 14px;border:1px solid color-mix(in srgb, var(--dsd-health, var(--dsw-alias-border-l2)) 40%, var(--dsw-alias-border-l2));border-radius:10px;background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 28px rgba(0,0,0,.22);color:var(--dsw-alias-label-primary);font-family:inherit;font-size:12px;font-weight:400;line-height:18px;text-align:left;white-space:normal;user-select:text}
 .dsd-status-anchor:hover .dsd-panel,.dsd-status-anchor:focus-within .dsd-panel{display:block}
-.dsd-panel-head{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.dsd-panel-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;padding:0 0 8px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay)}
 .dsd-panel-title{flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary)}
 .dsd-badge{flex:none;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border:1px solid color-mix(in srgb, var(--dsd-health, var(--dsw-alias-border-l1)) 55%, transparent);border-radius:999px;font-size:11px;font-weight:600;line-height:18px;color:var(--dsd-health, var(--dsw-alias-label-tertiary));background:var(--dsw-alias-bg-layer-2)}
 .dsd-provider{display:flex;align-items:center;gap:8px;margin-top:10px;padding:2px 0 5px;border-bottom:1px solid var(--dsw-alias-border-l1);min-width:0}
@@ -316,19 +316,22 @@ window.__ModuleLoader__.load({
     }
 
     function StatusPanel(props) {
-      const { board, t, loading, label, id, focus, model } = props;
-      const all = loading ? [] : providersOf(board);
-      const focused = focus === null || focus === undefined;
-      const providers = focused ? all : all.filter((provider) => provider.id === focus);
-      const others = focused ? [] : all.filter((provider) => provider.id !== focus);
+      const { board, t, loading, label, id, model } = props;
+      // Every provider is listed at once: the pill focuses one of them, but the card
+      // is the whole board.
+      const providers = loading ? [] : providersOf(board);
       const tone = loading ? 'unknown' : TONE[board.headline] ?? 'unknown';
 
       const rows = [];
       for (const provider of providers) {
         const providerTone = provider.ok === false ? 'unknown' : TONE[provider.headline] ?? 'unknown';
         const services = Array.isArray(provider.services) ? provider.services : [];
-        const { affected, healthy } = splitServices(services);
         const incidents = Array.isArray(provider.incidents) ? provider.incidents : [];
+        // Impaired components first, then the healthy rest, each group by name.
+        const ordered = services.slice().sort((left, right) => (
+          (HEALTH_WEIGHT[right.status] ?? 1) - (HEALTH_WEIGHT[left.status] ?? 1)
+          || (String(left.name) < String(right.name) ? -1 : String(left.name) > String(right.name) ? 1 : 0)
+        ));
 
         rows.push(h('div', {
           className: 'dsd-provider',
@@ -343,22 +346,16 @@ window.__ModuleLoader__.load({
               : t(LABEL_KEY[provider.headline] ?? 'status.unknown')),
         ));
 
-        for (const service of affected) {
+        for (const service of ordered) {
           const rowTone = serviceTone(service.status);
-          rows.push(h('div', { className: 'dsd-sub', 'data-tone': rowTone, key: `a:${provider.id}:${service.name}` },
+          rows.push(h('div', { className: 'dsd-sub', 'data-tone': rowTone, key: `s:${provider.id}:${service.name}` },
             h('span', { className: 'dsd-status-dot', 'data-tone': rowTone, 'aria-hidden': 'true' }),
             h('span', { className: 'dsd-row-name', title: service.name }, service.name),
             h('span', { className: 'dsd-row-state' }, t(LABEL_KEY[service.status] ?? 'status.unknown')),
           ));
         }
 
-        if (services.length > 0 && affected.length === 0) {
-          rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `q:${provider.id}` },
-            t('panel.detail.allHealthy', { count: healthy.length })));
-        } else if (affected.length > 0) {
-          rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `r:${provider.id}` },
-            t('panel.detail.rest', { count: healthy.length })));
-        } else if (provider.ok === false) {
+        if (provider.ok === false) {
           rows.push(h('div', { className: 'dsd-quiet dsd-sub', key: `e:${provider.id}` },
             provider.error ? String(provider.error).slice(0, 80) : t('panel.detail.unavailable')));
         }
@@ -394,16 +391,6 @@ window.__ModuleLoader__.load({
           ? [h('div', { className: 'dsd-model', key: 'model' }, t('panel.currentModel', { value: model }))]
           : []),
         ...rows,
-        ...(others.length > 0
-          ? [h('div', { className: 'dsd-others', key: 'others' },
-            t('panel.others', {
-              value: others
-                .map((provider) => `${provider.name} ${provider.ok === false
-                  ? t('panel.detail.unavailable')
-                  : t(LABEL_KEY[provider.headline] ?? 'status.unknown')}`)
-                .join(' · '),
-            }))]
-          : []),
         h('div', { className: 'dsd-foot' },
           providers.some((provider) => provider.stale === true)
             ? h('div', { className: 'dsd-warnline' }, t('panel.stale'))
@@ -550,7 +537,6 @@ window.__ModuleLoader__.load({
           loading,
           label,
           id: panelId,
-          focus,
           model: modelLabel,
         }),
       );
